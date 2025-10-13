@@ -24,26 +24,29 @@ const StickerModal = ({
     setLoading(true);
 
     const inchToPx = 96;
-    const stickerWidth = 2 * inchToPx; // 192px
-    const stickerHeight = 1 * inchToPx; // 96px
+    let stickerWidth = 2 * inchToPx; // 192px
+    let stickerHeight = 1 * inchToPx; // 96px
     const gap = 24; // 0.25 inch
     const rowMargin = 12;
 
     const stickersPerRow = 2;
     const totalRows = Math.ceil(stickerCount / stickersPerRow);
 
-    // Increase page width slightly if only 1 row (e.g., 4 stickers)
-    const pageWidth =
-      stickerCount <= stickersPerRow
-        ? gap + stickerWidth * stickerCount + gap * (stickerCount + 1)
-        : gap + stickersPerRow * stickerWidth + (stickersPerRow - 1) * gap + gap;
+    let pageWidth = gap + stickersPerRow * stickerWidth + (stickersPerRow - 1) * gap + gap;
+    let pageHeight = gap + totalRows * stickerHeight + (totalRows - 1) * gap + (totalRows - 1) * rowMargin + gap;
 
-    const pageHeight =
-      gap +
-      totalRows * stickerHeight +
-      (totalRows - 1) * gap +
-      (totalRows - 1) * rowMargin +
-      gap;
+    // If exactly 4 stickers, dynamically size stickers to fit the page
+    if (stickerCount === 4) {
+      // Define a target page size (A4 or similar, or keep the same logic as before)
+      // Let's use a smaller custom page size for 4 stickers
+      pageWidth = gap + stickersPerRow * stickerWidth + (stickersPerRow - 1) * gap + gap; // px, can be adjusted
+      pageHeight = gap + totalRows * stickerHeight + (totalRows - 1) * gap + (totalRows - 1) * rowMargin + gap; // px, can be adjusted
+      // stickerWidth = (pageWidth - gap * 3) / 4; 
+      // stickerHeight = (pageHeight - gap * 3) / 4; 
+
+      stickerWidth = 1.08 * inchToPx; // 192px
+    stickerHeight =  inchToPx /2.3; // 96px
+    }
 
     const pdf = new jsPDF({
       unit: "px",
@@ -121,30 +124,30 @@ const StickerModal = ({
                   crossOrigin="anonymous"
                   src={`${apiHost}/public/${product.qr_code}`}
                   alt="QR"
-                  style={{ width: 50, height: 50 }}
+                  style={{ width: stickerCount === 4 ? 35 : 50, height: stickerCount === 4 ? 30 : 50 }}
                 />
-                <p style={{ fontWeight: "bold", fontSize: "10px" }}>
+                <p style={{ fontWeight: "bold", fontSize: (stickerCount === 4 ? "5px" : "10px") }}>
                   {product.code}
                 </p>
               </div>
               <div>
-                <p style={{ fontWeight: "bold", fontSize: "10px" }}>
+                <p style={{ fontWeight: "bold", fontSize: (stickerCount === 4 ? "5px" : "10px") }}>
                   Hunny Bunny
                 </p>
-                <h4 style={{ fontWeight: "bold", fontSize: "10px" }}>
+                <h4 style={{ fontWeight: "bold", fontSize: (stickerCount === 4 ? "5px" : "10px") }}>
                   {product.name.toUpperCase()}
                 </h4>
                 <div className="flex flex-row-reverse gap-4 mt-1">
                   <div className="flex-1 flex-col">
-                    <p style={{ fontWeight: "600", fontSize: "9px" }}>
+                    <p style={{ fontWeight: "600", fontSize: (stickerCount === 4 ? "5px" : "9px") }}>
                       MRP {product.price}
                     </p>
-                    <p style={{ fontSize: "8px" }}>
+                    <p style={{ fontSize: (stickerCount === 4 ? "5px" : "8px") }}>
                       {product.product_quantity} {editStates[product.id]?.qty}
                     </p>
                   </div>
                   <div className="flex flex-col align-middle">
-                    <p style={{ fontWeight: "400", fontSize: "8px" }}>
+                    <p style={{ fontWeight: "400", fontSize: (stickerCount === 4 ? "4px" : "8px") }}>
                       pkd:{" "}
                       {editStates[product.id]?.pkd
                         ? dayjs(editStates[product.id].pkd, "DD-MM-YYYY").format(
@@ -152,7 +155,7 @@ const StickerModal = ({
                           )
                         : "--"}
                     </p>
-                    <p style={{ fontWeight: "400", fontSize: "8px" }}>
+                    <p style={{ fontWeight: "400", fontSize: (stickerCount === 4 ? "4px" : "8px") }}>
                       exp:{" "}
                       {editStates[product.id]?.exp
                         ? dayjs(editStates[product.id].exp, "DD-MM-YYYY").format(
