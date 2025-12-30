@@ -15,12 +15,9 @@ import {
 } from "../../components/toast/toast";
 import requestApi from "../../components/utils/axios";
 import { jwtDecode } from "jwt-decode";
-import { BrowserMultiFormatReader } from "@zxing/library";
 
 const QRScanner = () => {
   const scannedCodes = useRef(new Set());
-  const videoRef = useRef(null);
-
   const [products, setProducts] = useState([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
@@ -62,38 +59,56 @@ const QRScanner = () => {
     if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
   }, []);
 
-  // ZXing barcode scanner
-  // useEffect(() => {
-  //   const codeReader = new BrowserMultiFormatReader();
-  //   let active = true;
-  //   let selectedDeviceId;
+  // --- NEW: DIRECT PRINT LOGIC ---
+  const handleDirectPrint = (currentProducts, currentTotal, currentCustomer) => {
+    const doc = generatePDF(currentProducts, currentTotal, currentCustomer);
+    const string = doc.output('datauristring');
+    console.log("PDF Data URI Generated:", string);
+    // Open a temporary hidden window
+    const printWindow = window.open('', '_blank', 'width=1,height=1,left=0,top=0');
 
-  //   codeReader.listVideoInputDevices().then((videoInputDevices) => {
-  //     if (videoInputDevices.length > 0) {
-  //       selectedDeviceId = videoInputDevices[0].deviceId;
-  //       codeReader.decodeFromVideoDevice(
-  //         selectedDeviceId,
-  //         videoRef.current,
-  //         (result, err) => {
-  //           if (!active) return;
-  //           if (result) {
-  //             const code = result.getText();
-  //             if (!scannedCodes.current.has(code)) {
-  //               scannedCodes.current.add(code);
-  //               fetchProduct(code);
-  //               showSuccess(`Scanned: ${code}`);
-  //               clearExternalScannerBuffer(); // Clear buffer after successful scan
-  //             }
-  //           }
-  //         }
-  //       );
-  //     }
-  //   });
-  //   return () => {
-  //     active = false;
-  //     codeReader.reset();
-  //   };
-  // }, [clearExternalScannerBuffer]);
+    // Write an iframe to that window pointing to the PDF
+    printWindow.document.write(`
+      <html>
+        <body style="margin:0;">
+          <embed width="100%" height="100%" src="${string}" type="application/pdf" onload="window.print();">
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+
+    // Give it a moment to trigger, then close the temp window
+    setTimeout(() => {
+      printWindow.close();
+    }, 500);
+  };
+
+  const handleSaveAndDirectPrint = async () => {
+    const finalCustomerName = customerName.trim() ? customerName : "--";
+    if (products.length === 0) return showWarning("Scan Atleast 1 product");
+
+    setIsGenerating(true);
+    try {
+      await requestApi(
+        "POST",
+        `/bills/bill-details`,
+        buildPayload(finalCustomerName)
+      );
+      showSuccess("Bill saved successfully!");
+
+      // Execute the print logic
+      handleDirectPrint(products, totalAmount, finalCustomerName);
+
+      // Reset state
+      handleClearAll();
+    } catch (err) {
+      showError("Failed to save bill.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  // -------------------------------
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -102,12 +117,13 @@ const QRScanner = () => {
         handleSaveBillOnly();
       } else if (e.key === "F6") {
         e.preventDefault();
-        handleSaveBill();
+        // Trigger the direct print function
+        handleSaveAndDirectPrint();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [products, customerName, paymentMethod]);
+  }, [products, customerName, paymentMethod, totalAmount, userLocation]);
 
   const fetchProduct = async (code) => {
     try {
@@ -126,7 +142,7 @@ const QRScanner = () => {
         return [...prev, newProduct];
       });
     } catch {
-      alert("Product not found or error.");
+      showError("Product not found or error.");
     }
   };
 
@@ -154,6 +170,7 @@ const QRScanner = () => {
       return updated;
     });
   };
+
   useEffect(() => {
     recalculateTotal(products);
   }, [products]);
@@ -181,8 +198,8 @@ const QRScanner = () => {
     }
   };
 
-  const buildPayload = (customerName) => ({
-    customer_name: customerName,
+  const buildPayload = (finalCustomerName) => ({
+    customer_name: finalCustomerName,
     total_amount: totalAmount,
     payment_method: paymentMethod,
     location: userLocation,
@@ -245,15 +262,11 @@ const QRScanner = () => {
 
   useEffect(() => {
     let inputBuffer = "";
-    let isTypingInInput = false;
-
     const handleKeyPress = (e) => {
-      // REMOVED: Check for input/textarea/contentEditable focus
-      // Always build the buffer for barcode scans
       if (e.key === "Enter") {
         const code = inputBuffer.trim();
         inputBuffer = "";
-        clearExternalScannerBuffer(); // Clear buffer after successful scan
+        clearExternalScannerBuffer();
         if (code && !scannedCodes.current.has(code)) {
           scannedCodes.current.add(code);
           fetchProduct(code);
@@ -261,10 +274,8 @@ const QRScanner = () => {
         }
       } else if (e.key.length === 1) {
         inputBuffer += e.key;
-        setExternalScannerBuffer(inputBuffer); // Update visual buffer
+        setExternalScannerBuffer(inputBuffer);
         setIsExternalScannerActive(true);
-
-        // Auto-hide indicator after 3 seconds of inactivity
         setTimeout(() => {
           setIsExternalScannerActive(false);
           setExternalScannerBuffer("");
@@ -273,7 +284,6 @@ const QRScanner = () => {
     };
 
     const handleKeyDown = (e) => {
-      // Handle ESC key to clear buffer
       if (e.key === "Escape") {
         inputBuffer = "";
         setExternalScannerBuffer("");
@@ -292,15 +302,6 @@ const QRScanner = () => {
 
   return (
     <div className="qr-container">
-      {/* Barcode Scanner Preview */}
-      {/* <div className="qr-reader">
-        <h2 className="qr-title">Barcode Scanner</h2>
-        <video
-          ref={videoRef}
-          style={{ width: "100%", maxWidth: 400, marginBottom: 16 }}
-        />
-      </div> */}
-
       <div className="qr-reader-table">
         <CustomerForm
           customerName={customerName}
@@ -322,27 +323,6 @@ const QRScanner = () => {
           handleBufferInput={handleBufferInput}
         />
         <div className="flex justify-end gap-2 bill-container">
-          {/* <Button
-            style={{
-              backgroundColor: "#9b59b6",
-              color: "white",
-              border: "none",
-            }}
-            type="default"
-            onClick={() => {
-              const testBarcode = "8901063012813";
-              if (!scannedCodes.current.has(testBarcode)) {
-                scannedCodes.current.add(testBarcode);
-                fetchProduct(testBarcode);
-                showSuccess(`Test barcode scanned: ${testBarcode}`);
-              } else {
-                showWarning("Test barcode already scanned in this session.");
-              }
-            }}
-          >
-            Test Barcode
-          </Button> */}
-
           <Button
             danger
             type="primary"

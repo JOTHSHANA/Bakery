@@ -1,2 +1,2 @@
-const apiHost = "https://bakery-vunr.onrender.com"
+const apiHost = "http://localhost:5000"
 export default apiHost

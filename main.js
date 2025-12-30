@@ -6,13 +6,13 @@ const dotenv = require("dotenv");
 const http = require("http");
 const os = require("os");
 
+app.disableHardwareAcceleration();
+
 try {
   const tempLogPath = path.join(os.tmpdir(), "electron-app-early-crash.log");
-  const startupMessage = `[${new Date().toISOString()}] Electron app starting. Node version: ${
-    process.version
-  }. Electron version: ${process.versions.electron}. Packaged: ${
-    app.isPackaged
-  }\n`;
+  const startupMessage = `[${new Date().toISOString()}] Electron app starting. Node version: ${process.version
+    }. Electron version: ${process.versions.electron}. Packaged: ${app.isPackaged
+    }\n`;
   fs.writeFileSync(tempLogPath, startupMessage, { flag: "a" });
 } catch (e) {
   console.error("Critical: Failed to write early temp log:", e);
@@ -33,7 +33,7 @@ console.log(
 let backendProcess;
 const isDev = process.env.NODE_ENV === "development";
 
-function waitForBackendReady(port, timeout = 30000) {
+function waitForBackendReady(port, timeout = 140000) {
   console.log(`Waiting for backend to be ready on port ${port}...`);
   return new Promise((resolve, reject) => {
     const start = Date.now();
@@ -297,7 +297,7 @@ function startBackend() {
 function stopBackend() {
   if (backendProcess) {
     console.log("Attempting to stop backend process...");
-    
+
     // Try graceful shutdown first
     if (process.platform === 'win32') {
       // On Windows, use taskkill for better process cleanup
@@ -305,7 +305,7 @@ function stopBackend() {
     } else {
       // On Unix-like systems, send SIGTERM first, then SIGKILL if needed
       backendProcess.kill('SIGTERM');
-      
+
       // Fallback to SIGKILL after 5 seconds
       setTimeout(() => {
         if (backendProcess && !backendProcess.killed) {
@@ -313,7 +313,7 @@ function stopBackend() {
         }
       }, 5000);
     }
-    
+
     backendProcess = null;
     console.log("Backend process stop initiated.");
   }

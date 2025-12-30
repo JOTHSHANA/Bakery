@@ -1,4 +1,19 @@
 .ant-picker-date-panel {
-  width:450px !important;
+  width: 450px !important;
   min-width: 280px !important;
+}
+
+
+
+@media print {
+  @page {
+    /* Set the width to 80mm (standard thermal) and height to auto */
+    size: 80mm auto;
+    margin: 0mm;
+  }
+
+  body {
+    margin: 0px;
+    padding: 0px;
+  }
 }

@@ -12,9 +12,7 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
-    "@heroui/react": "^2.7.4",
     "@heroui/system": "^2.4.11",
-    "@heroui/theme": "^2.4.11",
     "@mui/icons-material": "^7.0.2",
     "@mui/material": "^7.0.2",
     "@nextui-org/react": "^2.6.11",
@@ -25,7 +23,7 @@
     "axios": "^1.9.0",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.13",
-    "framer-motion": "^12.9.2",
+    "framer-motion": "^12.23.25",
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",
     "install": "^0.13.0",
