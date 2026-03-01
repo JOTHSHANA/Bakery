@@ -30,6 +30,7 @@ const QRScanner = () => {
   const [externalScannerBuffer, setExternalScannerBuffer] = useState("");
   const [isExternalScannerActive, setIsExternalScannerActive] = useState(false);
   const bufferTimeoutRef = useRef(null);
+  const customerInputRef = useRef(null);
 
   useEffect(() => {
     const token = localStorage.getItem("D!");
@@ -41,6 +42,15 @@ const QRScanner = () => {
         console.error("Error decoding token:", err);
       }
     }
+  }, []);
+
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      customerInputRef.current?.focus();
+    }, 100); // small delay to override ProductTable focus
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleBufferInput = useCallback((value) => {
@@ -181,6 +191,11 @@ const QRScanner = () => {
     setTotalAmount(0);
     setCustomerName("");
     setPaymentMethod("UPI");
+
+    setTimeout(() => {
+      customerInputRef.current?.focus();
+    }, 100);
+
   };
 
   const handleProductSelect = (product) => {
@@ -309,6 +324,7 @@ const QRScanner = () => {
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
           handleBufferInput={handleBufferInput}
+          customerInputRef={customerInputRef}
         />
         <ProductTable
           products={products}
