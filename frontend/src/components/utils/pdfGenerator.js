@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import { toWords } from "number-to-words";
 
-const generatePDF = (products, totalAmount, customerName) => {
+const generatePDF = (products, totalAmount, customerName, payment) => {
   // 1. CONFIGURATION
   // We increase width to 200 (approx 70mm) to give more horizontal space
   // If your printer cuts off text, reduce this back to 190 or 180
