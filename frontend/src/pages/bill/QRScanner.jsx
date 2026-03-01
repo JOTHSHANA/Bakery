@@ -15,6 +15,7 @@ import {
 } from "../../components/toast/toast";
 import requestApi from "../../components/utils/axios";
 import { jwtDecode } from "jwt-decode";
+import generateReceiptHTML from "../../components/utils/receiptHtml";
 
 const QRScanner = () => {
   const scannedCodes = useRef(new Set());
@@ -30,7 +31,10 @@ const QRScanner = () => {
   const [externalScannerBuffer, setExternalScannerBuffer] = useState("");
   const [isExternalScannerActive, setIsExternalScannerActive] = useState(false);
   const bufferTimeoutRef = useRef(null);
-  const customerInputRef = useRef(null);
+
+  /* ------------------------------------------------ */
+  /* LOAD USER LOCATION */
+  /* ------------------------------------------------ */
 
   useEffect(() => {
     const token = localStorage.getItem("D!");
@@ -42,15 +46,6 @@ const QRScanner = () => {
         console.error("Error decoding token:", err);
       }
     }
-  }, []);
-
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      customerInputRef.current?.focus();
-    }, 100); // small delay to override ProductTable focus
-
-    return () => clearTimeout(timer);
   }, []);
 
   const handleBufferInput = useCallback((value) => {
@@ -69,34 +64,29 @@ const QRScanner = () => {
     if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
   }, []);
 
-  // --- NEW: DIRECT PRINT LOGIC ---
-  const handleDirectPrint = (currentProducts, currentTotal, currentCustomer) => {
-    const doc = generatePDF(currentProducts, currentTotal, currentCustomer);
-    const string = doc.output('datauristring');
-    console.log("PDF Data URI Generated:", string);
-    // Open a temporary hidden window
-    const printWindow = window.open('', '_blank', 'width=1,height=1,left=0,top=0');
+  /* ------------------------------------------------ */
+  /* SILENT PRINT (FIXED) */
+  /* ------------------------------------------------ */
 
-    // Write an iframe to that window pointing to the PDF
-    printWindow.document.write(`
-      <html>
-        <body style="margin:0;">
-          <embed width="100%" height="100%" src="${string}" type="application/pdf" onload="window.print();">
-        </body>
-      </html>
-    `);
+  const handleDirectPrint = (products, total, customer) => {
 
-    printWindow.document.close();
+    const html = generateReceiptHTML(products, total, customer);
 
-    // Give it a moment to trigger, then close the temp window
-    setTimeout(() => {
-      printWindow.close();
-    }, 500);
+    const { ipcRenderer } = window.require("electron");
+    ipcRenderer.send("print-html", html);
   };
+  /* ------------------------------------------------ */
+  /* SAVE + PRINT (FIXED SNAPSHOT) */
+  /* ------------------------------------------------ */
 
   const handleSaveAndDirectPrint = async () => {
     const finalCustomerName = customerName.trim() ? customerName : "--";
     if (products.length === 0) return showWarning("Scan Atleast 1 product");
+
+    // IMPORTANT → snapshot data to prevent blank print
+    const printProducts = [...products];
+    const printTotal = totalAmount;
+    const printCustomer = finalCustomerName;
 
     setIsGenerating(true);
     try {
@@ -105,12 +95,11 @@ const QRScanner = () => {
         `/bills/bill-details`,
         buildPayload(finalCustomerName)
       );
+
       showSuccess("Bill saved successfully!");
 
-      // Execute the print logic
-      handleDirectPrint(products, totalAmount, finalCustomerName);
+      handleDirectPrint(printProducts, printTotal, printCustomer);
 
-      // Reset state
       handleClearAll();
     } catch (err) {
       showError("Failed to save bill.");
@@ -118,7 +107,10 @@ const QRScanner = () => {
       setIsGenerating(false);
     }
   };
-  // -------------------------------
+
+  /* ------------------------------------------------ */
+  /* HOTKEYS */
+  /* ------------------------------------------------ */
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -127,13 +119,16 @@ const QRScanner = () => {
         handleSaveBillOnly();
       } else if (e.key === "F6") {
         e.preventDefault();
-        // Trigger the direct print function
         handleSaveAndDirectPrint();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [products, customerName, paymentMethod, totalAmount, userLocation]);
+
+  /* ------------------------------------------------ */
+  /* FETCH PRODUCT */
+  /* ------------------------------------------------ */
 
   const fetchProduct = async (code) => {
     try {
@@ -155,6 +150,10 @@ const QRScanner = () => {
       showError("Product not found or error.");
     }
   };
+
+  /* ------------------------------------------------ */
+  /* TOTAL */
+  /* ------------------------------------------------ */
 
   const recalculateTotal = (updated) => {
     const total = updated.reduce((sum, p) => sum + p.price * p.quantity, 0);
@@ -185,6 +184,10 @@ const QRScanner = () => {
     recalculateTotal(products);
   }, [products]);
 
+  /* ------------------------------------------------ */
+  /* CLEAR */
+  /* ------------------------------------------------ */
+
   const handleClearAll = () => {
     scannedCodes.current.clear();
     setProducts([]);
@@ -213,6 +216,10 @@ const QRScanner = () => {
     }
   };
 
+  /* ------------------------------------------------ */
+  /* PAYLOAD */
+  /* ------------------------------------------------ */
+
   const buildPayload = (finalCustomerName) => ({
     customer_name: finalCustomerName,
     total_amount: totalAmount,
@@ -226,6 +233,10 @@ const QRScanner = () => {
         unit_price: p.price,
       })),
   });
+
+  /* ------------------------------------------------ */
+  /* SAVE ONLY */
+  /* ------------------------------------------------ */
 
   const handleSaveBillOnly = async () => {
     const finalCustomerName = customerName.trim() ? customerName : "--";
@@ -246,6 +257,10 @@ const QRScanner = () => {
       setIsSaving(false);
     }
   };
+
+  /* ------------------------------------------------ */
+  /* PREVIEW */
+  /* ------------------------------------------------ */
 
   const handleSaveBill = async () => {
     const finalCustomerName = customerName.trim() ? customerName : "--";
@@ -275,8 +290,13 @@ const QRScanner = () => {
     handleClearAll();
   };
 
+  /* ------------------------------------------------ */
+  /* SCANNER KEYS */
+  /* ------------------------------------------------ */
+
   useEffect(() => {
     let inputBuffer = "";
+
     const handleKeyPress = (e) => {
       if (e.key === "Enter") {
         const code = inputBuffer.trim();
@@ -309,11 +329,16 @@ const QRScanner = () => {
 
     window.addEventListener("keypress", handleKeyPress);
     window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       window.removeEventListener("keypress", handleKeyPress);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  /* ------------------------------------------------ */
+  /* UI */
+  /* ------------------------------------------------ */
 
   return (
     <div className="qr-container">
@@ -324,8 +349,8 @@ const QRScanner = () => {
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
           handleBufferInput={handleBufferInput}
-          customerInputRef={customerInputRef}
         />
+
         <ProductTable
           products={products}
           handleChange={handleChange}
@@ -338,35 +363,22 @@ const QRScanner = () => {
           clearExternalScannerBuffer={clearExternalScannerBuffer}
           handleBufferInput={handleBufferInput}
         />
+
         <div className="flex justify-end gap-2 bill-container">
-          <Button
-            danger
-            type="primary"
-            onClick={handleClearAll}
-            disabled={isSaving || isGenerating}
-          >
+          <Button danger type="primary" onClick={handleClearAll}>
             Clear All
           </Button>
 
-          <Button
-            type="default"
-            onClick={handleSaveBillOnly}
-            loading={isSaving ? { icon: <SyncOutlined spin /> } : false}
-            disabled={isGenerating}
-          >
+          <Button onClick={handleSaveBillOnly} loading={isSaving}>
             Save
           </Button>
 
-          <Button
-            type="primary"
-            onClick={handleSaveBill}
-            loading={isGenerating ? { icon: <SyncOutlined spin /> } : false}
-            disabled={isSaving}
-          >
+          <Button type="primary" onClick={handleSaveBill} loading={isGenerating}>
             Save & Generate Bill
           </Button>
         </div>
       </div>
+
       {showPreview && (
         <PDFPreviewModal
           pdfUrl={pdfUrl}

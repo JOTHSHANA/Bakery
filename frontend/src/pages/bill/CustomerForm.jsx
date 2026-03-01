@@ -9,7 +9,6 @@ const CustomerForm = ({
   paymentMethod,
   setPaymentMethod,
   handleBufferInput,
-  customerInputRef,
 }) => {
   const inputRef = useRef(null);
 
@@ -26,7 +25,6 @@ const CustomerForm = ({
       <div style={{ flex: 1, minWidth: "200px" }}>
         <label className="block mb-1 font-medium">Customer Name</label>
         <Input
-          ref={customerInputRef}
           value={customerName}
           onChange={(e) => {
             setCustomerName(e.target.value);
