@@ -8,15 +8,12 @@
     "dev": "concurrently \"npm run dev-frontend\" \"npm run dev-backend\"",
     "dev-frontend": "cd frontend && npm run dev",
     "dev-backend": "cd mongo_backend && node src/app.js",
-
     "build-frontend": "cd frontend && npm install && npm run build",
     "install-backend-deps": "cd mongo_backend && npm install",
     "check-backend-node-modules": "node -e \"const fs = require('fs'); const path = './mongo_backend/node_modules'; if (!fs.existsSync(path) || fs.readdirSync(path).length === 0) { console.error('❌ node_modules missing in mongo_backend'); process.exit(1); } else { console.log('✅ mongo_backend/node_modules is ready'); }\"",
-
     "prepare-app": "npm run install-backend-deps && npm run check-backend-node-modules && npm run build-frontend",
     "dist": "npm run prepare-app && electron-builder",
     "dist-debug": "npm run prepare-app && DEBUG=electron-builder electron-builder",
-
     "electron": "electron .",
     "start-prod": "npm run prepare-app && cross-env NODE_ENV=production electron ."
   },
@@ -54,14 +51,18 @@
       {
         "from": "mongo_backend/node_modules",
         "to": "app.asar.unpacked/mongo_backend/node_modules",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
