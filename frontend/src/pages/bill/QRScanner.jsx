@@ -64,26 +64,16 @@ const QRScanner = () => {
     if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
   }, []);
 
-  /* ------------------------------------------------ */
-  /* SILENT PRINT (FIXED) */
-  /* ------------------------------------------------ */
-
-  const handleDirectPrint = (products, total, customer) => {
-
+  const handleDirectPrint = async (products, total, customer) => {
     const html = generateReceiptHTML(products, total, customer);
-
-    const { ipcRenderer } = window.require("electron");
-    ipcRenderer.send("print-html", html);
+    console.log("PRINT BUTTON CLICKED");
+    await window.electronAPI.printHTML(html);
   };
-  /* ------------------------------------------------ */
-  /* SAVE + PRINT (FIXED SNAPSHOT) */
-  /* ------------------------------------------------ */
 
   const handleSaveAndDirectPrint = async () => {
     const finalCustomerName = customerName.trim() ? customerName : "--";
     if (products.length === 0) return showWarning("Scan Atleast 1 product");
 
-    // IMPORTANT → snapshot data to prevent blank print
     const printProducts = [...products];
     const printTotal = totalAmount;
     const printCustomer = finalCustomerName;
@@ -93,7 +83,7 @@ const QRScanner = () => {
       await requestApi(
         "POST",
         `/bills/bill-details`,
-        buildPayload(finalCustomerName)
+        buildPayload(finalCustomerName),
       );
 
       showSuccess("Bill saved successfully!");
@@ -107,10 +97,6 @@ const QRScanner = () => {
       setIsGenerating(false);
     }
   };
-
-  /* ------------------------------------------------ */
-  /* HOTKEYS */
-  /* ------------------------------------------------ */
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -126,14 +112,10 @@ const QRScanner = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [products, customerName, paymentMethod, totalAmount, userLocation]);
 
-  /* ------------------------------------------------ */
-  /* FETCH PRODUCT */
-  /* ------------------------------------------------ */
-
   const fetchProduct = async (code) => {
     try {
       const res = await axios.get(
-        `${apiHost}/products/qr_products?term=${code}`
+        `${apiHost}/products/qr_products?term=${code}`,
       );
       const prod = res.data.data?.[0];
       if (!prod) throw new Error("Product not found");
@@ -150,10 +132,6 @@ const QRScanner = () => {
       showError("Product not found or error.");
     }
   };
-
-  /* ------------------------------------------------ */
-  /* TOTAL */
-  /* ------------------------------------------------ */
 
   const recalculateTotal = (updated) => {
     const total = updated.reduce((sum, p) => sum + p.price * p.quantity, 0);
@@ -184,10 +162,6 @@ const QRScanner = () => {
     recalculateTotal(products);
   }, [products]);
 
-  /* ------------------------------------------------ */
-  /* CLEAR */
-  /* ------------------------------------------------ */
-
   const handleClearAll = () => {
     scannedCodes.current.clear();
     setProducts([]);
@@ -216,10 +190,6 @@ const QRScanner = () => {
     }
   };
 
-  /* ------------------------------------------------ */
-  /* PAYLOAD */
-  /* ------------------------------------------------ */
-
   const buildPayload = (finalCustomerName) => ({
     customer_name: finalCustomerName,
     total_amount: totalAmount,
@@ -234,10 +204,6 @@ const QRScanner = () => {
       })),
   });
 
-  /* ------------------------------------------------ */
-  /* SAVE ONLY */
-  /* ------------------------------------------------ */
-
   const handleSaveBillOnly = async () => {
     const finalCustomerName = customerName.trim() ? customerName : "--";
     if (products.length === 0) return showWarning("Scan Atleast 1 Product");
@@ -247,7 +213,7 @@ const QRScanner = () => {
       await requestApi(
         "POST",
         `/bills/bill-details`,
-        buildPayload(finalCustomerName)
+        buildPayload(finalCustomerName),
       );
       showSuccess("Bill saved successfully");
       handleClearAll();
@@ -258,10 +224,6 @@ const QRScanner = () => {
     }
   };
 
-  /* ------------------------------------------------ */
-  /* PREVIEW */
-  /* ------------------------------------------------ */
-
   const handleSaveBill = async () => {
     const finalCustomerName = customerName.trim() ? customerName : "--";
     if (products.length === 0) return showWarning("Scan Atleast 1 products");
@@ -271,7 +233,7 @@ const QRScanner = () => {
       await requestApi(
         "POST",
         `/bills/bill-details`,
-        buildPayload(finalCustomerName)
+        buildPayload(finalCustomerName),
       );
       showSuccess("Bill saved successfully!");
       handlePreviewBill();
@@ -289,10 +251,6 @@ const QRScanner = () => {
     setShowPreview(true);
     handleClearAll();
   };
-
-  /* ------------------------------------------------ */
-  /* SCANNER KEYS */
-  /* ------------------------------------------------ */
 
   useEffect(() => {
     let inputBuffer = "";
@@ -336,10 +294,6 @@ const QRScanner = () => {
     };
   }, []);
 
-  /* ------------------------------------------------ */
-  /* UI */
-  /* ------------------------------------------------ */
-
   return (
     <div className="qr-container">
       <div className="qr-reader-table">
@@ -373,7 +327,11 @@ const QRScanner = () => {
             Save
           </Button>
 
-          <Button type="primary" onClick={handleSaveBill} loading={isGenerating}>
+          <Button
+            type="primary"
+            onClick={handleSaveBill}
+            loading={isGenerating}
+          >
             Save & Generate Bill
           </Button>
         </div>

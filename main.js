@@ -14,21 +14,20 @@ let frontendProcess;
 const isDev = !app.isPackaged;
 
 /* ------------------------------------------------ */
-/* WAIT FOR SERVER READY */
+/* SERVER WAIT */
 /* ------------------------------------------------ */
-
 function waitForServer(url, timeout = 20000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
 
     const check = () => {
-      http.get(url, () => resolve())
-          .on("error", () => {
-            if (Date.now() - start > timeout)
-              reject(`Timeout waiting for ${url}`);
-            else
-              setTimeout(check, 500);
-          });
+      http
+        .get(url, () => resolve())
+        .on("error", () => {
+          if (Date.now() - start > timeout)
+            reject(`Timeout waiting for ${url}`);
+          else setTimeout(check, 500);
+        });
     };
 
     check();
@@ -36,31 +35,34 @@ function waitForServer(url, timeout = 20000) {
 }
 
 /* ------------------------------------------------ */
-/* START FRONTEND (VITE DEV SERVER) */
+/* START FRONTEND */
 /* ------------------------------------------------ */
-
 function startFrontend() {
   if (!isDev) return;
 
   console.log("Starting frontend dev server...");
 
   frontendProcess = spawn("npm", ["run", "dev"], {
-    cwd: path.join(__dirname, "frontend"), // adjust if needed
+    cwd: path.join(__dirname, "frontend"),
     shell: true,
-    stdio: "inherit",
+    stdio: "pipe", // 🔥 IMPORTANT
   });
 
-  frontendProcess.on("exit", (code) =>
-    console.log("Frontend exited:", code)
-  );
+  frontendProcess.stdout.on("data", (data) => {
+    console.log("[VITE]", data.toString());
+  });
+
+  frontendProcess.stderr.on("data", (data) => {
+    console.error("[VITE ERROR]", data.toString());
+  });
+
+  frontendProcess.on("exit", (code) => console.log("Frontend exited:", code));
 }
 
 /* ------------------------------------------------ */
 /* START BACKEND */
 /* ------------------------------------------------ */
-
 function startBackend() {
-
   const backendDir = app.isPackaged
     ? path.join(process.resourcesPath, "app.asar.unpacked", "mongo_backend")
     : path.join(__dirname, "mongo_backend");
@@ -78,33 +80,27 @@ function startBackend() {
 
   backendProcess = spawn(nodeExec, [backendFile], {
     cwd: backendDir,
-    env: {
-      ...process.env,
-      PORT: process.env.PORT || 5000,
-      ...(app.isPackaged && { ELECTRON_RUN_AS_NODE: "1" }),
-    },
     stdio: "inherit",
   });
-
-  backendProcess.on("exit", (code) =>
-    console.log("Backend exited:", code)
-  );
 }
 
 /* ------------------------------------------------ */
-/* STOP PROCESSES */
+/* STOP CHILD PROCESSES */
 /* ------------------------------------------------ */
-
 function stopProcesses() {
   if (backendProcess) kill(backendProcess.pid);
   if (frontendProcess) kill(frontendProcess.pid);
 }
 
 /* ------------------------------------------------ */
-/* CREATE WINDOW */
+/* WINDOW CREATION */
 /* ------------------------------------------------ */
-
 function createWindow() {
+  const preloadPath = path.join(__dirname, "preload.js");
+
+  console.log("APP DIR:", __dirname);
+  console.log("PRELOAD PATH:", preloadPath);
+  console.log("PRELOAD EXISTS:", fs.existsSync(preloadPath));
 
   const splash = new BrowserWindow({
     width: 400,
@@ -120,15 +116,14 @@ function createWindow() {
     height: 800,
     show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      preload: preloadPath, // ✅ VERY IMPORTANT
+      contextIsolation: true, // ✅ REQUIRED
+      nodeIntegration: false, // ✅ REQUIRED
     },
   });
 
   if (isDev) {
-
     console.log("DEV MODE");
-
     startFrontend();
 
     waitForServer("http://localhost:5173")
@@ -138,20 +133,28 @@ function createWindow() {
       })
       .catch((err) => {
         console.error(err);
-        mainWindow.loadURL("data:text/html,<h1>Frontend failed to start</h1>");
+        mainWindow.loadURL("data:text/html,<h1>Frontend failed</h1>");
       });
-
   } else {
-
     console.log("PRODUCTION MODE");
-
-    const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
-
-    if (fs.existsSync(indexPath))
-      mainWindow.loadFile(indexPath);
-    else
-      mainWindow.loadURL("data:text/html,<h1>dist/index.html not found</h1>");
+    mainWindow.loadFile(path.join(__dirname, "frontend", "dist", "index.html"));
   }
+
+  mainWindow.webContents.once("did-finish-load", async () => {
+  console.log("🔍 Checking printers from MAIN WINDOW...");
+
+  try {
+    const printers = await mainWindow.webContents.getPrintersAsync();
+
+    console.log("================================");
+    console.log("MAIN WINDOW PRINTERS:");
+    console.log(JSON.stringify(printers, null, 2));
+    console.log("================================");
+
+  } catch (err) {
+    console.error("❌ Failed to get printers:", err);
+  }
+});
 
   mainWindow.once("ready-to-show", () => {
     splash.destroy();
@@ -162,39 +165,97 @@ function createWindow() {
 /* ------------------------------------------------ */
 /* SILENT PRINT */
 /* ------------------------------------------------ */
+console.log("✅ Registering IPC listeners");
 
-ipcMain.on("print-html", (event, htmlContent) => {
+ipcMain.handle("print-html", async (event, htmlContent) => {
+  console.log("🖨️ PRINT REQUEST RECEIVED");
 
   const printWindow = new BrowserWindow({
     show: false,
     webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true
-    }
+      contextIsolation: true,
+      sandbox: false,
+    },
   });
 
-  printWindow.loadURL(
-    "data:text/html;charset=utf-8," + encodeURIComponent(htmlContent)
-  );
+  return new Promise((resolve) => {
 
-  printWindow.webContents.on("did-finish-load", () => {
-    setTimeout(() => {
-      printWindow.webContents.print(
-        {
-          silent: true,
-          printBackground: true,
-        },
-        () => printWindow.close()
-      );
-    }, 200);
+    printWindow.webContents.once("did-finish-load", async () => {
+      try {
+        const printers = await printWindow.webContents.getPrintersAsync();
+
+        console.log("Available printers:", printers.map(p => p.name));
+
+        /* -------------------------------- */
+        /* FIND EPSON PRINTER */
+        /* -------------------------------- */
+
+        let printer = printers.find(p =>
+          p.name.toLowerCase().includes("epson")
+        );
+
+        /* fallback if Epson not found */
+        if (!printer) {
+          console.log("⚠ EPSON not found → using default printer");
+          printer = printers.find(p => p.isDefault);
+        }
+
+        if (!printer) {
+          console.error("❌ No printer available");
+          printWindow.close();
+          resolve(false);
+          return;
+        }
+
+        console.log("🎯 Printing to:", printer.name);
+
+        /* -------------------------------- */
+        /* SILENT PRINT */
+        /* -------------------------------- */
+
+        printWindow.webContents.print(
+          {
+            silent: true,
+            deviceName: printer.name,
+            printBackground: true,
+            margins: { marginType: "none" },
+            pageSize: {
+              width: 80000,   // 80mm receipt
+              height: 200000
+            }
+          },
+          (success, err) => {
+            if (success) console.log("✅ Print success");
+            else console.error("❌ Print failed:", err);
+
+            printWindow.close();
+            resolve(success);
+          }
+        );
+
+      } catch (err) {
+        console.error("Print error:", err);
+        printWindow.close();
+        resolve(false);
+      }
+    });
+
+    printWindow.loadURL(
+      "data:text/html;charset=utf-8," +
+      encodeURIComponent(htmlContent)
+    );
+
   });
+});
 
+ipcMain.handle("ping", () => {
+  console.log("🏓 PING RECEIVED IN MAIN");
+  return "pong";
 });
 
 /* ------------------------------------------------ */
-/* APP EVENTS */
+/* APP READY */
 /* ------------------------------------------------ */
-
 app.whenReady().then(() => {
   startBackend();
   createWindow();
@@ -208,6 +269,5 @@ app.on("window-all-closed", () => {
 app.on("before-quit", stopProcesses);
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0)
-    createWindow();
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
