@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./loginPage.css";
 import { useNavigate } from "react-router-dom";
 import { EyeInvisibleOutlined, EyeTwoTone } from "@ant-design/icons";
@@ -13,7 +13,9 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const navigate = useNavigate();
-
+  useEffect(() => {
+    localStorage.removeItem("D!");
+  }, []);
   const onFinish = async (values) => {
     setLoading(true);
     const { username, password } = values;
