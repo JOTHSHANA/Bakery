@@ -168,6 +168,11 @@ const QRScanner = () => {
     setTotalAmount(0);
     setCustomerName("");
     setPaymentMethod("UPI");
+
+    setTimeout(() => {
+      customerInputRef.current?.focus();
+    }, 100);
+
   };
 
   const handleProductSelect = (product) => {

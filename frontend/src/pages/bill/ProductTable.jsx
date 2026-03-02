@@ -53,10 +53,10 @@ const ProductTable = ({
   }, [products]);
 
   useEffect(() => {
-    if (codeRefs.current && codeRefs.current.length > 0) {
-      const lastIndex = codeRefs.current.length - 1;
-      if (codeRefs.current[lastIndex] && codeRefs.current[lastIndex].focus) {
-        codeRefs.current[lastIndex].focus();
+    if (nameRefs.current && nameRefs.current.length > 0) {
+      const lastIndex = nameRefs.current.length - 1;
+      if (nameRefs.current[lastIndex]?.focus) {
+        nameRefs.current[lastIndex].focus();
       }
     }
   }, [dataSource.length]);
@@ -64,12 +64,12 @@ const ProductTable = ({
   useEffect(() => {
     if (
       dataSource.length === 1 &&
-      codeRefs.current[0] &&
-      codeRefs.current[0].focus &&
+      nameRefs.current[0] &&
+      nameRefs.current[0]?.focus &&
       !dataSource[0].code &&
       !dataSource[0].name
     ) {
-      codeRefs.current[0].focus();
+      nameRefs.current[0].focus();
     }
   }, [dataSource]);
 
@@ -174,9 +174,9 @@ const ProductTable = ({
 
       switch (e.key) {
         case "ArrowRight":
-          if (field === "code" && nameRefs.current[rowIndex]) {
-            nameRefs.current[rowIndex].focus();
-          } else if (field === "name" && qtyRefs.current[rowIndex]) {
+          if (field === "name" && codeRefs.current[rowIndex]) {
+            codeRefs.current[rowIndex].focus();
+          } else if (field === "code" && qtyRefs.current[rowIndex]) {
             qtyRefs.current[rowIndex].focus();
           } else if (field === "qty" && priceRefs.current[rowIndex]) {
             priceRefs.current[rowIndex].focus();
@@ -184,10 +184,10 @@ const ProductTable = ({
           break;
 
         case "ArrowLeft":
-          if (field === "name" && codeRefs.current[rowIndex]) {
-            codeRefs.current[rowIndex].focus();
-          } else if (field === "qty" && nameRefs.current[rowIndex]) {
+          if (field === "code" && nameRefs.current[rowIndex]) {
             nameRefs.current[rowIndex].focus();
+          } else if (field === "qty" && codeRefs.current[rowIndex]) {
+            codeRefs.current[rowIndex].focus();
           } else if (field === "price" && qtyRefs.current[rowIndex]) {
             qtyRefs.current[rowIndex].focus();
           }
@@ -196,10 +196,10 @@ const ProductTable = ({
         case "ArrowDown":
           if (rowIndex < maxRow) {
             const nextRowIndex = rowIndex + 1;
-            if (field === "code" && codeRefs.current[nextRowIndex]) {
-              codeRefs.current[nextRowIndex].focus();
-            } else if (field === "name" && nameRefs.current[nextRowIndex]) {
+            if (field === "name" && nameRefs.current[nextRowIndex]) {
               nameRefs.current[nextRowIndex].focus();
+            } else if (field === "code" && codeRefs.current[nextRowIndex]) {
+              codeRefs.current[nextRowIndex].focus();
             } else if (field === "qty" && qtyRefs.current[nextRowIndex]) {
               qtyRefs.current[nextRowIndex].focus();
             } else if (field === "price" && priceRefs.current[nextRowIndex]) {
@@ -220,10 +220,10 @@ const ProductTable = ({
         case "ArrowUp":
           if (rowIndex > 0) {
             const prevRowIndex = rowIndex - 1;
-            if (field === "code" && codeRefs.current[prevRowIndex]) {
-              codeRefs.current[prevRowIndex].focus();
-            } else if (field === "name" && nameRefs.current[prevRowIndex]) {
+            if (field === "name" && nameRefs.current[prevRowIndex]) {
               nameRefs.current[prevRowIndex].focus();
+            } else if (field === "code" && codeRefs.current[prevRowIndex]) {
+              codeRefs.current[prevRowIndex].focus();
             } else if (field === "qty" && qtyRefs.current[prevRowIndex]) {
               qtyRefs.current[prevRowIndex].focus();
             } else if (field === "price" && priceRefs.current[prevRowIndex]) {
@@ -245,55 +245,7 @@ const ProductTable = ({
   };
 
   const columns = [
-    {
-      title: "Code",
-      dataIndex: "code",
-      render: (text, record, index) => (
-        <CustomCreatableSelect
-          className="min-w-[140px]"
-          placeholder="code"
-          ref={(el) => (codeRefs.current[index] = el)}
-          value={text ? { label: text, value: text } : null}
-          onInputChange={(inputValue) => {
-            if (inputValue) fetchProducts(inputValue);
-          }}
-          onChange={(option) => {
-            const value = option?.value || "";
-            const product = productList.find((p) => p.code === value);
 
-            const updated = [...dataSource];
-            if (product) {
-              updated[index] = {
-                code: product.code,
-                name: product.name,
-                price: parseFloat(product.price),
-                quantity: 1,
-              };
-            } else {
-              updated[index].code = value;
-            }
-            setDataSource(updated);
-            handleChange(index, "code", value);
-            if (product) {
-              handleChange(index, "name", product.name);
-              handleChange(index, "price", parseFloat(product.price));
-              handleChange(index, "quantity", 1);
-            }
-            if (clearExternalScannerBuffer) clearExternalScannerBuffer();
-          }}
-          onBlur={() => {
-            if (clearExternalScannerBuffer) clearExternalScannerBuffer();
-          }}
-          options={productList.map((p) => ({
-            label: `${p.code} - ${p.name}`,
-            value: p.code,
-          }))}
-          onKeyDown={(e) => handleTableKeyDown(e, index, "code")}
-          data-row={index}
-          data-field="code"
-        />
-      ),
-    },
     {
       title: "Name",
       dataIndex: "name",
@@ -340,6 +292,55 @@ const ProductTable = ({
           onKeyDown={(e) => handleTableKeyDown(e, index, "name")}
           data-row={index}
           data-field="name"
+        />
+      ),
+    },
+    {
+      title: "Code",
+      dataIndex: "code",
+      render: (text, record, index) => (
+        <CustomCreatableSelect
+          className="min-w-[140px]"
+          placeholder="code"
+          ref={(el) => (codeRefs.current[index] = el)}
+          value={text ? { label: text, value: text } : null}
+          onInputChange={(inputValue) => {
+            if (inputValue) fetchProducts(inputValue);
+          }}
+          onChange={(option) => {
+            const value = option?.value || "";
+            const product = productList.find((p) => p.code === value);
+
+            const updated = [...dataSource];
+            if (product) {
+              updated[index] = {
+                code: product.code,
+                name: product.name,
+                price: parseFloat(product.price),
+                quantity: 1,
+              };
+            } else {
+              updated[index].code = value;
+            }
+            setDataSource(updated);
+            handleChange(index, "code", value);
+            if (product) {
+              handleChange(index, "name", product.name);
+              handleChange(index, "price", parseFloat(product.price));
+              handleChange(index, "quantity", 1);
+            }
+            if (clearExternalScannerBuffer) clearExternalScannerBuffer();
+          }}
+          onBlur={() => {
+            if (clearExternalScannerBuffer) clearExternalScannerBuffer();
+          }}
+          options={productList.map((p) => ({
+            label: `${p.code} - ${p.name}`,
+            value: p.code,
+          }))}
+          onKeyDown={(e) => handleTableKeyDown(e, index, "code")}
+          data-row={index}
+          data-field="code"
         />
       ),
     },
