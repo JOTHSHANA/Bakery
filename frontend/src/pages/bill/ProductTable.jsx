@@ -35,6 +35,7 @@ const ProductTable = ({
   const [dataSource, setDataSource] = useState([]);
   const [productList, setProductList] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [inputMode, setInputMode] = useState({});
   const codeRefs = useRef([]);
   const nameRefs = useRef([]);
   const qtyRefs = useRef([]);
@@ -51,27 +52,6 @@ const ProductTable = ({
     }
     setDataSource(updated);
   }, [products]);
-
-  useEffect(() => {
-    if (nameRefs.current && nameRefs.current.length > 0) {
-      const lastIndex = nameRefs.current.length - 1;
-      if (nameRefs.current[lastIndex]?.focus) {
-        nameRefs.current[lastIndex].focus();
-      }
-    }
-  }, [dataSource.length]);
-
-  useEffect(() => {
-    if (
-      dataSource.length === 1 &&
-      nameRefs.current[0] &&
-      nameRefs.current[0]?.focus &&
-      !dataSource[0].code &&
-      !dataSource[0].name
-    ) {
-      nameRefs.current[0].focus();
-    }
-  }, [dataSource]);
 
   const fetchProducts = async (term = "") => {
     if (!term.trim()) {
@@ -166,86 +146,36 @@ const ProductTable = ({
   };
 
   const handleTableKeyDown = (e, rowIndex, field) => {
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const maxRow = dataSource.length - 1;
-
-      switch (e.key) {
-        case "ArrowRight":
-          if (field === "name" && codeRefs.current[rowIndex]) {
-            codeRefs.current[rowIndex].focus();
-          } else if (field === "code" && qtyRefs.current[rowIndex]) {
-            qtyRefs.current[rowIndex].focus();
-          } else if (field === "qty" && priceRefs.current[rowIndex]) {
-            priceRefs.current[rowIndex].focus();
-          }
-          break;
-
-        case "ArrowLeft":
-          if (field === "code" && nameRefs.current[rowIndex]) {
-            nameRefs.current[rowIndex].focus();
-          } else if (field === "qty" && codeRefs.current[rowIndex]) {
-            codeRefs.current[rowIndex].focus();
-          } else if (field === "price" && qtyRefs.current[rowIndex]) {
-            qtyRefs.current[rowIndex].focus();
-          }
-          break;
-
-        case "ArrowDown":
-          if (rowIndex < maxRow) {
-            const nextRowIndex = rowIndex + 1;
-            if (field === "name" && nameRefs.current[nextRowIndex]) {
-              nameRefs.current[nextRowIndex].focus();
-            } else if (field === "code" && codeRefs.current[nextRowIndex]) {
-              codeRefs.current[nextRowIndex].focus();
-            } else if (field === "qty" && qtyRefs.current[nextRowIndex]) {
-              qtyRefs.current[nextRowIndex].focus();
-            } else if (field === "price" && priceRefs.current[nextRowIndex]) {
-              priceRefs.current[nextRowIndex].focus();
+    if (field === "name" || field === "code") {
+      // For Name/Code fields, jump to Qty on ArrowRight
+      // (Enter is handled natively by the select component's onChange)
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (qtyRefs.current[rowIndex]) {
+          qtyRefs.current[rowIndex].focus();
+          // Select the text inside the input so typing overwrites it
+          setTimeout(() => {
+            if (qtyRefs.current[rowIndex]?.select) {
+              qtyRefs.current[rowIndex].select();
             }
-          } else {
-            // Move to customer name field when at last row
-            setActiveField("customerName");
-            const customerNameInput = document.querySelector(
-              'input[placeholder="Enter customer name"]'
-            );
-            if (customerNameInput) {
-              customerNameInput.focus();
-            }
-          }
-          break;
-
-        case "ArrowUp":
-          if (rowIndex > 0) {
-            const prevRowIndex = rowIndex - 1;
-            if (field === "name" && nameRefs.current[prevRowIndex]) {
-              nameRefs.current[prevRowIndex].focus();
-            } else if (field === "code" && codeRefs.current[prevRowIndex]) {
-              codeRefs.current[prevRowIndex].focus();
-            } else if (field === "qty" && qtyRefs.current[prevRowIndex]) {
-              qtyRefs.current[prevRowIndex].focus();
-            } else if (field === "price" && priceRefs.current[prevRowIndex]) {
-              priceRefs.current[prevRowIndex].focus();
-            }
-          } else {
-            // Move to payment method field when at first row
-            setActiveField("paymentMethod");
-            const paymentMethodSelect = document.querySelector(
-              ".ant-select-selector"
-            );
-            if (paymentMethodSelect) {
-              paymentMethodSelect.focus();
-            }
-          }
-          break;
+          }, 10);
+        }
+      }
+    } else if (field === "qty") {
+      // For Qty, jump to next row's Name on ArrowRight OR Enter
+      if (e.key === "ArrowRight" || e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        const nextRowIndex = rowIndex + 1;
+        if (nameRefs.current[nextRowIndex]) {
+          nameRefs.current[nextRowIndex].focus();
+        }
       }
     }
   };
 
   const columns = [
-
     {
       title: "Name",
       dataIndex: "name",
@@ -281,6 +211,16 @@ const ProductTable = ({
               handleChange(index, "quantity", 1);
             }
             if (clearExternalScannerBuffer) clearExternalScannerBuffer();
+
+            // Move cursor directly to QTY and highlight the text
+            setTimeout(() => {
+              if (qtyRefs.current[index]) {
+                qtyRefs.current[index].focus();
+                if (qtyRefs.current[index].select) {
+                  qtyRefs.current[index].select();
+                }
+              }
+            }, 50);
           }}
           onBlur={() => {
             if (clearExternalScannerBuffer) clearExternalScannerBuffer();
@@ -330,6 +270,16 @@ const ProductTable = ({
               handleChange(index, "quantity", 1);
             }
             if (clearExternalScannerBuffer) clearExternalScannerBuffer();
+
+            // Move cursor directly to QTY and highlight the text
+            setTimeout(() => {
+              if (qtyRefs.current[index]) {
+                qtyRefs.current[index].focus();
+                if (qtyRefs.current[index].select) {
+                  qtyRefs.current[index].select();
+                }
+              }
+            }, 50);
           }}
           onBlur={() => {
             if (clearExternalScannerBuffer) clearExternalScannerBuffer();
@@ -451,32 +401,7 @@ const ProductTable = ({
         </Select>
       </div>
 
-      <div
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (["ArrowRight", "ArrowLeft"].includes(e.key)) {
-            e.stopPropagation();
-            e.preventDefault();
-            const active = document.activeElement;
-            let rowIndex = -1;
-            codeRefs.current.forEach((ref, idx) => {
-              if (ref && ref.input && ref.input === active) rowIndex = idx;
-            });
-            nameRefs.current.forEach((ref, idx) => {
-              if (ref && ref.input && ref.input === active) rowIndex = idx;
-            });
-            if (rowIndex === -1) return;
-            if (e.key === "ArrowRight" && nameRefs.current[rowIndex]) {
-              nameRefs.current[rowIndex].focus &&
-                nameRefs.current[rowIndex].focus();
-            }
-            if (e.key === "ArrowLeft" && codeRefs.current[rowIndex]) {
-              codeRefs.current[rowIndex].focus &&
-                codeRefs.current[rowIndex].focus();
-            }
-          }
-        }}
-      >
+      <div>
         <Table
           columns={columns}
           dataSource={dataSource}
