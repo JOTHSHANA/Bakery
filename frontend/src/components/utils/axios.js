@@ -44,7 +44,16 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+
+    // 🔥 SKIP TOKEN CHECK FOR LOGIN / REGISTER
+    const publicRoutes = ["/auth/login", "/auth/register"];
+
+    if (publicRoutes.some(route => config.url.includes(route))) {
+      return config;
+    }
+
     const token = localStorage.getItem("D!");
+
     if (token) {
       if (isTokenExpired(token)) {
         localStorage.removeItem("D!");
@@ -56,13 +65,13 @@ api.interceptors.request.use(
           },
         });
       }
+
       config.headers["Authorization"] = `Bearer ${token}`;
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor
