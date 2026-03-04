@@ -28,7 +28,7 @@ const CustomerForm = ({
           value={customerName}
           onChange={(e) => {
             setCustomerName(e.target.value);
-            handleBufferInput(e.target.value);
+            // handleBufferInput(e.target.value);
           }}
           placeholder="Enter customer name"
         />

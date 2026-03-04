@@ -113,9 +113,9 @@ const ProductTable = ({
     handleChange(index, field, value);
 
     // Buffer update for quantity and price
-    if (["quantity", "price"].includes(field)) {
-      handleBufferInput(value?.toString() || "");
-    }
+    // if (["quantity", "price"].includes(field)) {
+    //   handleBufferInput(value?.toString() || "");
+    // }
     if (["code", "name"].includes(field)) {
       const productFieldList = productList.map((p) => p[field]);
       setInputMode((prev) => ({

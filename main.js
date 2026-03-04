@@ -141,20 +141,20 @@ function createWindow() {
   }
 
   mainWindow.webContents.once("did-finish-load", async () => {
-  console.log("🔍 Checking printers from MAIN WINDOW...");
+    console.log("🔍 Checking printers from MAIN WINDOW...");
 
-  try {
-    const printers = await mainWindow.webContents.getPrintersAsync();
+    try {
+      const printers = await mainWindow.webContents.getPrintersAsync();
 
-    console.log("================================");
-    console.log("MAIN WINDOW PRINTERS:");
-    console.log(JSON.stringify(printers, null, 2));
-    console.log("================================");
+      console.log("================================");
+      console.log("MAIN WINDOW PRINTERS:");
+      console.log(JSON.stringify(printers, null, 2));
+      console.log("================================");
 
-  } catch (err) {
-    console.error("❌ Failed to get printers:", err);
-  }
-});
+    } catch (err) {
+      console.error("❌ Failed to get printers:", err);
+    }
+  });
 
   mainWindow.once("ready-to-show", () => {
     splash.destroy();
