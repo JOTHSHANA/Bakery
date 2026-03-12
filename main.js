@@ -39,7 +39,6 @@ app.on("second-instance", () => {
 /* LOGGER */
 
 function log(msg) {
-
   const line = `[${new Date().toISOString()}] ${msg}\n`;
 
   console.log(msg);
@@ -54,35 +53,25 @@ function log(msg) {
 /* WAIT SERVER */
 
 function waitForServer(url, timeout = 20000) {
-
   return new Promise((resolve, reject) => {
-
     const start = Date.now();
 
     const check = () => {
-
-      http.get(url, () => resolve())
+      http
+        .get(url, () => resolve())
         .on("error", () => {
-
-          if (Date.now() - start > timeout)
-            reject("Server timeout");
-
+          if (Date.now() - start > timeout) reject("Server timeout");
           else setTimeout(check, 500);
-
         });
-
     };
 
     check();
-
   });
-
 }
 
 /* FRONTEND */
 
 function startFrontend() {
-
   if (!isDev) return;
 
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -90,18 +79,16 @@ function startFrontend() {
   frontendProcess = spawn(npm, ["run", "dev"], {
     cwd: path.join(__dirname, "frontend"),
     shell: true,
-    stdio: "pipe"
+    stdio: "pipe",
   });
 
-  frontendProcess.stdout.on("data", d => log(d.toString()));
-  frontendProcess.stderr.on("data", d => log(d.toString()));
-
+  frontendProcess.stdout.on("data", (d) => log(d.toString()));
+  frontendProcess.stderr.on("data", (d) => log(d.toString()));
 }
 
 /* BACKEND */
 
 function startBackend() {
-
   const backendDir = app.isPackaged
     ? path.join(process.resourcesPath, "app.asar.unpacked", "mongo_backend")
     : path.join(__dirname, "mongo_backend");
@@ -115,37 +102,32 @@ function startBackend() {
 
   backendProcess = spawn("node", [file], {
     cwd: backendDir,
-    stdio: "inherit"
+    stdio: "inherit",
   });
-
 }
 
 /* STOP PROCESSES */
 
 function stopProcesses() {
-
   if (backendProcess?.pid) kill(backendProcess.pid);
   if (frontendProcess?.pid) kill(frontendProcess.pid);
-
 }
 
 /* WINDOW */
 
 function createWindow() {
-
   const preload = path.join(__dirname, "preload.js");
 
   splashWindow = new BrowserWindow({
     width: 400,
     height: 300,
     frame: false,
-    alwaysOnTop: true
+    alwaysOnTop: true,
   });
 
   splashWindow.loadFile(path.join(__dirname, "splash.html"));
 
   mainWindow = new BrowserWindow({
-
     width: 1200,
     height: 800,
     show: false,
@@ -154,164 +136,189 @@ function createWindow() {
       preload,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
-    }
-
+      sandbox: true,
+    },
   });
 
   if (isDev) {
-
     startFrontend();
 
     waitForServer("http://localhost:5173")
       .then(() => mainWindow.loadURL("http://localhost:5173"))
-      .catch(() => mainWindow.loadURL("data:text/html,<h1>Frontend failed</h1>"));
-
+      .catch(() =>
+        mainWindow.loadURL("data:text/html,<h1>Frontend failed</h1>"),
+      );
   } else {
-
-    mainWindow.loadFile(
-      path.join(__dirname, "frontend", "dist", "index.html")
-    );
-
+    mainWindow.loadFile(path.join(__dirname, "frontend", "dist", "index.html"));
   }
 
   mainWindow.once("ready-to-show", () => {
-
     splashWindow.close();
     mainWindow.show();
-
   });
-
 }
-
-/* PRINT HTML RECEIPT */
-
-ipcMain.handle("print-html", async (event, htmlContent) => {
-
-  log("PRINT REQUEST RECEIVED");
-
-  /* TRY USB ESC/POS FIRST */
-
+// SAVE RECEIPT TO FILE
+function saveReceiptToFile(htmlContent) {
   try {
 
-    await printUSB(htmlContent);
+    const receiptDir = path.join(
+      app.getPath("downloads"),
+      "HB_Receipts"
+    );
 
-    log("USB printer success");
+    if (!fs.existsSync(receiptDir)) {
+      fs.mkdirSync(receiptDir, { recursive: true });
+    }
 
-    return true;
+    const filePath = path.join(
+      receiptDir,
+      `receipt_${Date.now()}.html`
+    );
+
+    fs.writeFileSync(filePath, htmlContent);
+
+    log("Receipt saved locally → " + filePath);
+
+    return filePath;
 
   } catch (err) {
 
-    log("USB printer failed → fallback to Windows printer");
+    log("Save receipt failed → " + err);
+    return null;
 
   }
-
-  /* FALLBACK → ELECTRON PRINT */
+}
+// PRINT HTML RECEIPT
+async function printReceipt(htmlContent) {
 
   const printWindow = new BrowserWindow({
     show: false
   });
 
-  return new Promise((resolve) => {
+  await printWindow.loadURL(
+    "data:text/html;charset=utf-8," +
+    encodeURIComponent(htmlContent)
+  );
 
-    printWindow.webContents.once("did-finish-load", async () => {
+  const printers = await printWindow.webContents.getPrintersAsync();
 
-      try {
+  log("Detected printers: " + printers.map(p => p.name).join(", "));
 
-        const printers = await printWindow.webContents.getPrintersAsync();
+  let filteredPrinters = printers.filter(p =>
+    !/pdf|xps|onenote/i.test(p.name)
+  );
 
-        log("Detected printers: " + printers.map(p => p.name).join(", "));
+  let targetPrinter = filteredPrinters.find(p =>
+    /(epson|tm-t|pos|thermal)/i.test(p.name)
+  );
 
-        let pdfPrinter = printers.find(p =>
-          p.name.toLowerCase().includes("pdf")
-        );
+  if (!targetPrinter) {
+    targetPrinter = filteredPrinters.find(p => p.isDefault);
+  }
 
-        if (!pdfPrinter && printers.length > 0) {
-          pdfPrinter = printers[0];
-        }
+  if (!targetPrinter) {
+    printWindow.close();
+    throw new Error("No printer available");
+  }
 
-        if (!pdfPrinter) {
+  return new Promise((resolve, reject) => {
 
-          log("No printers available");
-
-          printWindow.close();
-          resolve(false);
-          return;
-
-        }
-
-        log("Fallback printer: " + pdfPrinter.name);
-
-        printWindow.webContents.print(
-          {
-            silent: true,
-            deviceName: pdfPrinter.name,
-            printBackground: true
-          },
-          (success) => {
-
-            printWindow.close();
-            resolve(success);
-
-          }
-        );
-
-      } catch (err) {
-
-        log("Fallback printing failed: " + err);
+    printWindow.webContents.print(
+      {
+        silent: true,
+        deviceName: targetPrinter.name,
+        printBackground: true
+      },
+      (success) => {
 
         printWindow.close();
-        resolve(false);
+
+        if (success) resolve(true);
+        else reject(new Error("Print failed"));
 
       }
-
-    });
-
-    printWindow.loadURL(
-      "data:text/html;charset=utf-8," +
-      encodeURIComponent(htmlContent)
     );
 
   });
 
-});
+}
+// SAFE PRINT WITH FALLBACK
+async function safePrintReceipt(htmlContent) {
 
+  try {
+
+    await printReceipt(htmlContent);
+
+    log("Receipt printed successfully");
+
+    return {
+      success: true
+    };
+
+  } catch (err) {
+
+    log("Printing failed → fallback save");
+
+    const path = saveReceiptToFile(htmlContent);
+
+    return {
+      success: false,
+      saved: true,
+      path
+    };
+
+  }
+
+}
+
+// IPC HANDLERS
+ipcMain.handle("print-html", async (event, htmlContent) => {
+
+  log("PRINT REQUEST RECEIVED");
+
+  const result = await safePrintReceipt(htmlContent);
+
+  return result;
+
+});
+// SAVE RECEIPT TO FILE
+ipcMain.handle("save-receipt", async (event, htmlContent) => {
+
+  const path = saveReceiptToFile(htmlContent);
+
+  return {
+    saved: true,
+    path
+  };
+
+});
 /* IPC TEST */
 
-ipcMain.handle("ping", ()=>"pong");
-
+ipcMain.handle("ping", () => "pong");
 /* APP READY */
 
-app.whenReady().then(()=>{
-
+app.whenReady().then(() => {
   logFile = path.join(app.getPath("userData"), "app.log");
 
   startBackend();
   createWindow();
-
 });
 
 /* EVENTS */
 
-app.on("window-all-closed", ()=>{
-
+app.on("window-all-closed", () => {
   stopProcesses();
 
-  if (process.platform !== "darwin")
-    app.quit();
-
+  if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", stopProcesses);
 
-app.on("activate", ()=>{
-
-  if (BrowserWindow.getAllWindows().length === 0)
-    createWindow();
-
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
 /* CRASH HANDLING */
 
-process.on("uncaughtException", err => log(err));
-process.on("unhandledRejection", err => log(err));
+process.on("uncaughtException", (err) => log(err));
+process.on("unhandledRejection", (err) => log(err));

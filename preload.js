@@ -4,5 +4,6 @@ console.log("PRELOAD LOADED");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   printHTML: (html) => ipcRenderer.invoke("print-html", html),
-  ping: () => ipcRenderer.invoke("ping"),
+  saveReceipt: (html) => ipcRenderer.invoke("save-receipt", html),
+  ping: () => ipcRenderer.invoke("ping"), 
 });
