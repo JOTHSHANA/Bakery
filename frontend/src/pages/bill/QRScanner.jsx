@@ -1,10 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "antd";
-import { SyncOutlined } from "@ant-design/icons";
 import ProductTable from "./ProductTable";
 import CustomerForm from "./CustomerForm";
-import PDFPreviewModal from "./PDFPreviewModal";
-import generatePDF from "../../components/utils/pdfGenerator";
 import axios from "axios";
 import apiHost from "../../components/utils/api";
 import "./QRScanner.css";
@@ -19,10 +16,9 @@ import generateReceiptHTML from "../../components/utils/receiptHtml";
 
 const QRScanner = () => {
   const scannedCodes = useRef(new Set());
+  const customerInputRef = useRef(null);
   const [products, setProducts] = useState([]);
   const [totalAmount, setTotalAmount] = useState(0);
-  const [showPreview, setShowPreview] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("UPI");
   const [userLocation, setUserLocation] = useState("");
@@ -97,20 +93,11 @@ const QRScanner = () => {
       setIsGenerating(false);
     }
   };
+  const productsRef = useRef(products);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "F5") {
-        e.preventDefault();
-        handleSaveBillOnly();
-      } else if (e.key === "F6") {
-        e.preventDefault();
-        handleSaveAndDirectPrint();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [products, customerName, paymentMethod, totalAmount, userLocation]);
+    productsRef.current = products;
+  }, [products]);
 
   const fetchProduct = async (code) => {
     try {
@@ -172,7 +159,6 @@ const QRScanner = () => {
     setTimeout(() => {
       customerInputRef.current?.focus();
     }, 100);
-
   };
 
   const handleProductSelect = (product) => {
@@ -224,75 +210,93 @@ const QRScanner = () => {
     }
   };
 
-  const handleSaveBill = async () => {
-    const finalCustomerName = customerName.trim() ? customerName : "--";
-    if (products.length === 0) return showWarning("Scan Atleast 1 products");
+useEffect(() => {
+    let buffer = "";
+    let lastKeyTime = 0;
+    const SCAN_SPEED = 50;
 
-    setIsGenerating(true);
-    try {
-      await requestApi(
-        "POST",
-        `/bills/bill-details`,
-        buildPayload(finalCustomerName),
-      );
-      showSuccess("Bill saved successfully!");
-      handlePreviewBill();
-    } catch {
-      showError("Failed to save bill.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+    const handleKeyDown = (e) => {
+      /* SHORTCUTS */
+      if (e.key === "F5") {
+        e.preventDefault();
 
-  const handlePreviewBill = () => {
-    const doc = generatePDF(products, totalAmount, customerName);
-    const dataUri = doc.output("datauristring");
-    setPdfUrl(dataUri);
-    setShowPreview(true);
-    handleClearAll();
-  };
+        // Safe to use productsRef here, but handleSaveBillOnly now has fresh state too!
+        if (productsRef.current.length === 0) {
+          showWarning("Scan Atleast 1 product");
+          return;
+        }
 
-  useEffect(() => {
-    let inputBuffer = "";
+        handleSaveBillOnly();
+        return;
+      }
 
-    const handleKeyPress = (e) => {
+      if (e.key === "F6") {
+        e.preventDefault();
+
+        if (productsRef.current.length === 0) {
+          showWarning("Scan Atleast 1 product");
+          return;
+        }
+
+        handleSaveAndDirectPrint();
+        return;
+      }
+
+      /* SCANNER LOGIC */
+      const active = document.activeElement;
+
+      if (
+        active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable
+      ) {
+        return;
+      }
+
+      const now = Date.now();
+      const timeDiff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (timeDiff > SCAN_SPEED) {
+        buffer = "";
+      }
+
       if (e.key === "Enter") {
-        const code = inputBuffer.trim();
-        inputBuffer = "";
-        clearExternalScannerBuffer();
-        if (code && !scannedCodes.current.has(code)) {
+        const code = buffer.trim();
+        buffer = "";
+
+        if (!code || code.length < 4) return;
+
+        if (!scannedCodes.current.has(code)) {
           scannedCodes.current.add(code);
           fetchProduct(code);
           showSuccess(`Scanned: ${code}`);
         }
-      } else if (e.key.length === 1) {
-        inputBuffer += e.key;
-        setExternalScannerBuffer(inputBuffer);
-        setIsExternalScannerActive(true);
-        setTimeout(() => {
-          setIsExternalScannerActive(false);
-          setExternalScannerBuffer("");
-        }, 3000);
-      }
-    };
 
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        inputBuffer = "";
+        return;
+      }
+
+      if (e.key.length !== 1) return;
+
+      buffer += e.key;
+
+      setExternalScannerBuffer(buffer);
+      setIsExternalScannerActive(true);
+
+      clearTimeout(bufferTimeoutRef.current);
+
+      bufferTimeoutRef.current = setTimeout(() => {
         setExternalScannerBuffer("");
         setIsExternalScannerActive(false);
-        showWarning("Scanner buffer cleared.");
-      }
+      }, 500);
     };
 
-    window.addEventListener("keypress", handleKeyPress);
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
-      window.removeEventListener("keypress", handleKeyPress);
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, []);
+  }, [handleSaveAndDirectPrint, handleSaveBillOnly]); // <-- Added dependencies here
 
   return (
     <div className="qr-container">
@@ -310,7 +314,7 @@ const QRScanner = () => {
           handleChange={handleChange}
           totalAmount={totalAmount}
           handleClearAll={handleClearAll}
-          handleSaveBill={handleSaveBill}
+          // handleSaveBill={handleSaveBill}
           handleProductSelect={handleProductSelect}
           isExternalScannerActive={isExternalScannerActive}
           externalScannerBuffer={externalScannerBuffer}
@@ -329,25 +333,13 @@ const QRScanner = () => {
 
           <Button
             type="primary"
-            onClick={handleSaveBill}
+            onClick={handleSaveAndDirectPrint}
             loading={isGenerating}
           >
             Save & Generate Bill
           </Button>
         </div>
       </div>
-
-      {showPreview && (
-        <PDFPreviewModal
-          pdfUrl={pdfUrl}
-          onClose={() => setShowPreview(false)}
-          onDownload={() => {
-            const doc = generatePDF(products, totalAmount, customerName);
-            doc.save("Product_Bill.pdf");
-            setShowPreview(false);
-          }}
-        />
-      )}
     </div>
   );
 };

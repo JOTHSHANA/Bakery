@@ -53,6 +53,27 @@ const ProductTable = ({
     setDataSource(updated);
   }, [products]);
 
+  const initialFocusDone = useRef(false);
+
+  useEffect(() => {
+    if (!initialFocusDone.current && dataSource.length > 0) {
+      setTimeout(() => {
+        const firstInput = nameRefs.current[0];
+        if (firstInput) {
+          firstInput.focus();
+          if (firstInput.select) firstInput.select();
+          initialFocusDone.current = true;
+        }
+      }, 100);
+    }
+  }, [dataSource]);
+
+  useEffect(() => {
+    if (products.length === 0) {
+      initialFocusDone.current = false;
+    }
+  }, [products]);
+
   const fetchProducts = async (term = "") => {
     if (!term.trim()) {
       setProductList([]);
@@ -62,7 +83,7 @@ const ProductTable = ({
       setLoading(true);
       const res = await requestApi(
         "GET",
-        `/products/qr_products?term=${encodeURIComponent(term)}`
+        `/products/qr_products?term=${encodeURIComponent(term)}`,
       );
       const list = res.data?.data || [];
       setProductList(list);
@@ -77,7 +98,7 @@ const ProductTable = ({
   const debouncedFetch = useRef(
     debounce((value) => {
       fetchProducts(value);
-    }, 300)
+    }, 300),
   ).current;
 
   const handleSearch = (value) => {
@@ -146,30 +167,53 @@ const ProductTable = ({
   };
 
   const handleTableKeyDown = (e, rowIndex, field) => {
+    /* NAME OR CODE FIELD */
+
     if (field === "name" || field === "code") {
-      // For Name/Code fields, jump to Qty on ArrowRight
-      // (Enter is handled natively by the select component's onChange)
-      if (e.key === "ArrowRight") {
+      if (e.key === "ArrowRight" || e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
+
         if (qtyRefs.current[rowIndex]) {
           qtyRefs.current[rowIndex].focus();
-          // Select the text inside the input so typing overwrites it
+
           setTimeout(() => {
-            if (qtyRefs.current[rowIndex]?.select) {
-              qtyRefs.current[rowIndex].select();
-            }
+            qtyRefs.current[rowIndex]?.select?.();
           }, 10);
         }
       }
     } else if (field === "qty") {
-      // For Qty, jump to next row's Name on ArrowRight OR Enter
+      /* QTY FIELD */
+      /* Move back to Name */
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+
+        if (nameRefs.current[rowIndex]) {
+          nameRefs.current[rowIndex].focus();
+        }
+      }
+
+      /* Move to next row Name */
+
       if (e.key === "ArrowRight" || e.key === "Enter") {
         e.preventDefault();
-        e.stopPropagation();
-        const nextRowIndex = rowIndex + 1;
-        if (nameRefs.current[nextRowIndex]) {
-          nameRefs.current[nextRowIndex].focus();
+
+        const nextRow = rowIndex + 1;
+
+        setTimeout(() => {
+          if (nameRefs.current[nextRow]) {
+            nameRefs.current[nextRow].focus();
+          }
+        }, 10);
+      }
+    } else if (field === "price") {
+      /* PRICE FIELD */
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+
+        if (qtyRefs.current[rowIndex]) {
+          qtyRefs.current[rowIndex].focus();
         }
       }
     }

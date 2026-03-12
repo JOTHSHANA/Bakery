@@ -76,8 +76,9 @@ const generateReceiptHTML = (products, totalAmount, customerName) => {
 
 body{
   font-family:"Courier New", monospace;
-  width:260px;
+  width:280px;
   margin:0;
+  line-height:1.2;
   padding:6px;
   font-size:12px;
 }
